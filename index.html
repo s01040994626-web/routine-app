@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>데일리 루틴 로그</title>
+<style>
+  :root{
+    --paper:#EDEEE4;--line:#d9dbcd;--ink:#22314F;--soft:#5a6478;
+    --red:#C1443C;--card:#F7F7F1;--green:#F2F5EE;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    background:linear-gradient(var(--line) 1px,transparent 1px) 0 0/100% 34px,var(--paper);
+    color:var(--ink);font-family:-apple-system,sans-serif;padding:0 0 60px;
+  }
+  .wrap{max-width:700px;margin:0 auto;padding:24px 16px 0;}
+  .masthead{border-bottom:3px solid var(--ink);padding-bottom:14px;margin-bottom:18px;
+    display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;}
+  .masthead h1{font-size:28px;font-weight:800;letter-spacing:-0.02em;}
+  .masthead .range{font-size:12px;color:var(--soft);font-family:monospace;}
+  .stat .num{font-size:38px;font-weight:800;color:var(--red);line-height:1;}
+  .stat .lbl{font-size:11px;color:var(--soft);font-family:monospace;text-transform:uppercase;letter-spacing:.06em;}
+  .legend{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px;font-size:12px;color:var(--soft);}
+  .legend span{display:flex;align-items:center;gap:4px;}
+  .month-tag{font-size:20px;font-weight:800;margin:20px 0 10px;display:flex;align-items:baseline;gap:6px;}
+  .month-tag small{font-size:11px;font-weight:400;color:var(--soft);font-family:monospace;}
+  .week{margin-bottom:22px;}
+  .week-head{display:flex;justify-content:space-between;font-size:11px;color:var(--soft);
+    font-family:monospace;text-transform:uppercase;letter-spacing:.05em;
+    border-bottom:1px solid var(--ink);padding-bottom:5px;margin-bottom:7px;}
+  .week-head .prog{color:var(--red);font-weight:700;}
+  .day{background:var(--card);border:1px solid var(--line);border-left:4px solid transparent;
+    border-radius:6px;padding:9px 10px;margin-bottom:7px;
+    display:flex;align-items:center;gap:10px;box-shadow:0 1px 2px rgba(0,0,0,.08);}
+  .day.today{border-left-color:var(--red);}
+  .day.complete{background:var(--green);}
+  .datebadge{width:46px;flex:0 0 46px;text-align:center;}
+  .datebadge .dow{font-size:10px;color:var(--soft);text-transform:uppercase;font-family:monospace;}
+  .datebadge .dom{font-size:22px;font-weight:800;line-height:1.1;}
+  .today-tag{display:inline-block;margin-top:2px;font-size:9px;background:var(--red);
+    color:#fff;padding:1px 5px;border-radius:3px;letter-spacing:.04em;font-family:monospace;}
+  .toggles{display:flex;gap:5px;flex:1;flex-wrap:wrap;}
+  .sbtn{width:36px;height:36px;border-radius:50%;border:2px solid var(--line);
+    background:#fff;display:flex;align-items:center;justify-content:center;
+    font-size:16px;cursor:pointer;transition:transform .12s,background .12s,border-color .12s;}
+  .sbtn:active{transform:scale(.9);}
+  .sbtn.on{background:var(--red);border-color:var(--red);transform:rotate(-6deg) scale(1.05);}
+  .sbtn.on span{filter:grayscale(1) brightness(10);}
+  .wfield{flex:0 0 auto;display:flex;align-items:baseline;gap:3px;font-family:monospace;}
+  .wfield input{width:50px;border:none;border-bottom:2px solid var(--line);
+    background:transparent;font-family:monospace;font-size:14px;font-weight:700;
+    color:var(--ink);text-align:right;padding:2px 0;}
+  .wfield input:focus{outline:none;border-bottom-color:#C88A2A;}
+  .wfield .unit{font-size:11px;color:var(--soft);}
+  .footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);
+    font-size:11px;font-family:monospace;color:var(--soft);
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
+  .rbtn{font-size:11px;color:var(--red);background:none;border:1px solid var(--red);
+    border-radius:4px;padding:5px 9px;cursor:pointer;font-family:monospace;}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <p style="font-family:monospace;color:#5a6478;padding:40px 0;text-align:center;">불러오는 중…</p>
+</div>
+<script>
+var STORAGE_KEY='routine-log-v2';
+var START=new Date(2026,6,10);
+var END=new Date(2026,7,30);
+var FIELDS=[
+  {key:'exercise',icon:'🏋️',label:'운동 30분+'},
+  {key:'shower',  icon:'🚿',label:'샤워'},
+  {key:'diet',    icon:'🥗',label:'식단'},
+  {key:'noSnack', icon:'🚫',label:'군것질 안하기'}
+];
+var DOW=['일','월','화','수','목','금','토'];
+var DATA={};
+
+function today(){var n=new Date();return new Date(n.getFullYear(),n.getMonth(),n.getDate());}
+function fmt(d){return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());}
+function p(n){return String(n).padStart(2,'0');}
+function same(a,b){return fmt(a)===fmt(b);}
+
+function loadData(){
+  try{var r=localStorage.getItem(STORAGE_KEY);if(r)DATA=JSON.parse(r);}
+  catch(e){DATA={};}
+}
+function saveData(){
+  try{localStorage.setItem(STORAGE_KEY,JSON.stringify(DATA));}
+  catch(e){}
+}
+function getEntry(s){
+  if(!DATA[s])DATA[s]={exercise:false,shower:false,diet:false,noSnack:false,weight:''};
+  return DATA[s];
+}
+
+function buildDates(){
+  var out=[],cur=new Date(START);
+  while(cur<=END){out.push(new Date(cur));cur.setDate(cur.getDate()+1);}
+  return out;
+}
+function groupWeeks(dates){
+  var weeks=[],cur=[];
+  for(var i=0;i<dates.length;i++){
+    var d=dates[i],mi=(d.getDay()+6)%7;
+    if(cur.length&&mi===0){weeks.push(cur);cur=[];}
+    cur.push(d);
+  }
+  if(cur.length)weeks.push(cur);
+  return weeks;
+}
+
+function render(){
+  var dates=buildDates(),weeks=groupWeeks(dates),td=today();
+  var fullyDone=0;
+  for(var i=0;i<dates.length;i++){
+    var e=DATA[fmt(dates[i])];
+    if(e&&FIELDS.every(function(f){return e[f.key];}))fullyDone++;
+  }
+  var html='<div class="masthead">'
+    +'<div><h1>데일리 루틴 로그</h1><div class="range">2026.07.10 — 2026.08.30 · 총 '+dates.length+'일</div></div>'
+    +'<div class="stat"><div class="num">'+fullyDone+'</div><div class="lbl">완주한 날</div></div>'
+    +'</div>';
+  html+='<div class="legend">';
+  FIELDS.forEach(function(f){html+='<span>'+f.icon+' '+f.label+'</span>';});
+  html+='<span>⚖️ 몸무게</span></div>';
+
+  var lastMonth=null;
+  for(var wi=0;wi<weeks.length;wi++){
+    var week=weeks[wi];
+    var wm=week[0].getMonth();
+    if(wm!==lastMonth){
+      lastMonth=wm;
+      html+='<div class="month-tag">'+(wm+1)+'월 <small>MONTH</small></div>';
+    }
+    var wd=0,wp=week.length*FIELDS.length;
+    for(var di=0;di<week.length;di++){
+      var e2=DATA[fmt(week[di])];
+      if(e2)FIELDS.forEach(function(f){if(e2[f.key])wd++;});
+    }
+    var w0=week[0],wl=week[week.length-1];
+    html+='<div class="week"><div class="week-head"><span>'
+      +(w0.getMonth()+1)+'.'+w0.getDate()+' – '+(wl.getMonth()+1)+'.'+wl.getDate()
+      +'</span><span class="prog">'+wd+'/'+wp+'</span></div>';
+
+    for(var di2=0;di2<week.length;di2++){
+      var d2=week[di2],ds=fmt(d2),ent=getEntry(ds);
+      var isToday=same(d2,td);
+      var allDone=FIELDS.every(function(f){return ent[f.key];});
+      var cls='day'+(isToday?' today':'')+(allDone?' complete':'');
+      html+='<div class="'+cls+'">'
+        +'<div class="datebadge"><div class="dow">'+DOW[d2.getDay()]+'</div>'
+        +'<div class="dom">'+d2.getDate()+'</div>'
+        +(isToday?'<div class="today-tag">오늘</div>':'')+'</div>'
+        +'<div class="toggles">';
+      FIELDS.forEach(function(f){
+        html+='<button class="sbtn'+(ent[f.key]?' on':'')+'" data-date="'+ds+'" data-field="'+f.key+'" title="'+f.label+'"><span>'+f.icon+'</span></button>';
+      });
+      html+='</div>'
+        +'<div class="wfield"><input type="number" step="0.1" inputmode="decimal" placeholder="--" value="'+(ent.weight||'')+'" data-date="'+ds+'"><span class="unit">kg</span></div>'
+        +'</div>';
+    }
+    html+='</div>';
+  }
+  html+='<div class="footer"><span>체크와 몸무게는 자동 저장돼요.</span>'
+    +'<button class="rbtn" id="rb">전체 초기화</button></div>';
+
+  document.getElementById('app').innerHTML=html;
+
+  document.querySelectorAll('.sbtn').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var ds=btn.dataset.date,f=btn.dataset.field;
+      getEntry(ds)[f]=!getEntry(ds)[f];
+      saveData();render();
+      var todayEl=document.querySelector('.day.today');
+      if(todayEl)todayEl.scrollIntoView({block:'nearest'});
+    });
+  });
+  document.querySelectorAll('.wfield input').forEach(function(inp){
+    inp.addEventListener('change',function(){
+      getEntry(inp.dataset.date).weight=inp.value;
+      saveData();
+    });
+  });
+  var rb=document.getElementById('rb');
+  if(rb)rb.addEventListener('click',function(){
+    if(confirm('모든 기록을 초기화할까요?')){DATA={};saveData();render();}
+  });
+
+  var todayEl=document.querySelector('.day.today');
+  if(todayEl)todayEl.scrollIntoView({block:'center'});
+}
+
+try{
+  loadData();
+  render();
+}catch(err){
+  document.getElementById('app').innerHTML=
+    '<p style="color:#C1443C;font-family:monospace;padding:30px;white-space:pre-wrap;">오류:\n'+String(err)+'</p>';
+}
+</script>
+</body>
+</html>
